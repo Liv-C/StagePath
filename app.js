@@ -1,7 +1,7 @@
 const COLS = 13;
 const ROWS = 9;
 const COLORS = [
-  '#ff6b45', '#4f8cff', '#9d5cff', '#00a88c', '#ec4e96',
+  '#eab308', '#4f8cff', '#9d5cff', '#00a88c', '#ec4e96',
   '#e0a318', '#17a9c7', '#ec7b38', '#7c6ddb', '#cf5275',
 ];
 
@@ -884,9 +884,8 @@ $('#audio-file').addEventListener('change', (e) => {
   $('#audio-name').textContent = file.name;
 });
 
-// 從頭開始播放（音樂、走位歸零）
+// 從頭開始播放（有音樂就同步音樂，沒音樂就純走位歸零播放）
 $('#play-from-start').addEventListener('click', () => {
-    if (!audio.src) return alert('請先選擇音檔。');
     if (state.cues.length < 2) {
       return alert('請先建立至少兩個 Cue，才能預覽走位。');
     }
@@ -898,14 +897,15 @@ $('#play-from-start').addEventListener('click', () => {
     state.expandedGroup = 0;
     render();
   
-    audio.currentTime = 0;
-    audio.play();
+    if (audio.src) {
+      audio.currentTime = 0;
+      audio.play();
+    }
     play();
   });
   
-  // 修改：從目前選取的拍點開始播放（移除 #song-offset）
-  $('#sync-audio').addEventListener('click', () => {
-    if (!audio.src) return alert('請先選擇音檔。');
+// 從目前選取的拍點開始播放
+$('#sync-audio').addEventListener('click', () => {
     if (state.cues.length < 2) {
       return alert('請先建立至少兩個 Cue，才能預覽走位。');
     }
@@ -913,10 +913,12 @@ $('#play-from-start').addEventListener('click', () => {
     pause(); // 先重置計時基準，確保從當前 Cue 的精準拍點開始算
     state.pausedBeat = currentCue().beat;
   
-    audio.currentTime = (currentCue().beat * 60) / bpm();
-    audio.play();
+    if (audio.src) {
+      audio.currentTime = (currentCue().beat * 60) / bpm();
+      audio.play();
+    }
     play();
-  });
+});
 
 /*$('#sync-audio').addEventListener('click', () => {
   if (!audio.src) return alert('請先選擇音檔。');
