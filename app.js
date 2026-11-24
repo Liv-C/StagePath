@@ -1030,6 +1030,213 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
+// --- Export 走位 (PNG) ---
+function exportFormationImage() {
+  if (!state.dancers.length) {
+    return alert('請先新增舞者再匯出走位圖。');
+  }
+
+  const cues = state.cues;
+  const cols = 2; // 每排顯示 2 張舞台卡片（雙欄排版，手機看最剛好）
+  const rows = Math.ceil(cues.length / cols);
+
+  // 版面尺寸設定（2x 高解析度，文字與線條極清晰）
+  const padding = 36;
+  const gap = 28;
+  const headerHeight = 90;
+  const cardWidth = 540;
+  const cardTitleHeight = 46;
+  const stageWidth = cardWidth - 32;
+  const stageHeight = Math.round(stageWidth * (ROWS / COLS));
+  const cardHeight = cardTitleHeight + stageHeight + 24;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = padding * 2 + cols * cardWidth + (cols - 1) * gap;
+  canvas.height = padding * 2 + headerHeight + rows * cardHeight + (rows - 1) * gap;
+
+  const ctx = canvas.getContext('2d');
+
+  // 1. 整體深色背景
+  ctx.fillStyle = '#0f172a';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // 2. 頂部標題與資訊
+  ctx.fillStyle = '#f8fafc';
+  ctx.font = 'bold 28px system-ui, -apple-system, sans-serif';
+  ctx.fillText('走位與燈光排練圖', padding, padding + 32);
+
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '16px system-ui, -apple-system, sans-serif';
+  const dancerLegend = state.dancers.map((d) => d.name).join('、');
+  ctx.fillText(
+    `共 ${cues.length} 個 Cue ｜ 舞者：${dancerLegend}`,
+    padding,
+    padding + 62
+  );
+
+  // 九宮格燈光對應座標比例（與 lightGradient 完全一致）
+  const zoneRectMap = {
+    all: [0, 0, 1, 1],
+    ul: [2 / 3, 0, 1 / 3, 1 / 3],
+    uc: [1 / 3, 0, 1 / 3, 1 / 3],
+    ur: [0, 0, 1 / 3, 1 / 3],
+    ml: [2 / 3, 1 / 3, 1 / 3, 1 / 3],
+    mc: [1 / 3, 1 / 3, 1 / 3, 1 / 3],
+    mr: [0, 1 / 3, 1 / 3, 1 / 3],
+    dl: [2 / 3, 2 / 3, 1 / 3, 1 / 3],
+    dc: [1 / 3, 2 / 3, 1 / 3, 1 / 3],
+    dr: [0, 2 / 3, 1 / 3, 1 / 3],
+  };
+
+  const zoneNames = {
+    all: '全場',
+    ul: '上左', uc: '上中', ur: '上右',
+    ml: '中左', mc: '中中', mr: '中右',
+    dl: '下左', dc: '下中', dr: '下右',
+  };
+
+  // 3. 逐一繪製每個 Cue 卡片
+  cues.forEach((cue, idx) => {
+    const c = idx % cols;
+    const r = Math.floor(idx / cols);
+    const cardX = padding + c * (cardWidth + gap);
+    const cardY = padding + headerHeight + r * (cardHeight + gap);
+
+    // 卡片外框
+    ctx.fillStyle = '#1e293b';
+    ctx.beginPath();
+    ctx.roundRect(cardX, cardY, cardWidth, cardHeight, 12);
+    ctx.fill();
+
+    // 卡片標題列（拍點 + 燈光狀態）
+    const light = cue.light || { color: '#5e8dff', brightness: 0, zone: 'mc' };
+    ctx.fillStyle = '#f8fafc';
+    ctx.font = 'bold 18px system-ui, -apple-system, sans-serif';
+    ctx.fillText(`#${idx + 1}  ${cueText(cue.beat)}`, cardX + 16, cardY + 30);
+
+    // 右側燈光標籤
+    const lightLabel =
+      light.brightness > 0
+        ? `燈光：${zoneNames[light.zone] || light.zone} ${light.brightness}%`
+        : '燈光：關閉';
+    ctx.fillStyle = '#cbd5e1';
+    ctx.font = '14px system-ui, -apple-system, sans-serif';
+    const textW = ctx.measureText(lightLabel).width;
+    ctx.fillText(lightLabel, cardX + cardWidth - 16 - textW, cardY + 29);
+
+    if (light.brightness > 0) {
+      ctx.fillStyle = light.color;
+      ctx.beginPath();
+      ctx.arc(cardX + cardWidth - 26 - textW, cardY + 24, 6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // 舞台底圖區域
+    const sx = cardX + 16;
+    const sy = cardY + cardTitleHeight;
+    ctx.fillStyle = '#0b1120';
+    ctx.fillRect(sx, sy, stageWidth, stageHeight);
+
+    // 畫出燈光區塊預覽
+    if (light.brightness > 0) {
+      const rgb = hexToRgb(light.color);
+      const [zx, zy, zw, zh] = zoneRectMap[light.zone] || zoneRectMap.mc;
+      ctx.fillStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${(light.brightness / 100) * 0.55})`;
+      ctx.fillRect(sx + zx * stageWidth, sy + zy * stageHeight, zw * stageWidth, zh * stageHeight);
+    }
+
+    // 畫舞台網格線與座標字樣
+    const cellW = stageWidth / COLS;
+    const cellH = stageHeight / ROWS;
+    ctx.strokeStyle = 'rgba(148, 163, 184, 0.16)';
+    ctx.lineWidth = 1;
+
+    for (let row = 0; row < ROWS; row++) {
+      for (let col = 0; col < COLS; col++) {
+        const cx = sx + col * cellW;
+        const cy = sy + row * cellH;
+        ctx.strokeRect(cx, cy, cellW, cellH);
+
+        // 格子內淡色座標（如 A-1）
+        ctx.fillStyle = 'rgba(148, 163, 184, 0.28)';
+        ctx.font = '9px system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(coordinate(col, row), cx + cellW / 2, cy + cellH / 2);
+      }
+    }
+
+    // 畫往下一拍的走位軌跡線（虛線 + 終點小圓點）
+    const nextCue = cues[idx + 1];
+    if (nextCue) {
+      state.dancers.forEach((d) => {
+        const a = cue.positions[d.id];
+        const b = nextCue.positions[d.id];
+        if (!a || !b || (a.col === b.col && a.row === b.row)) return;
+
+        const x1 = sx + (a.col + 0.5) * cellW;
+        const y1 = sy + (a.row + 0.5) * cellH;
+        const x2 = sx + (b.col + 0.5) * cellW;
+        const y2 = sy + (b.row + 0.5) * cellH;
+
+        ctx.save();
+        ctx.strokeStyle = d.color;
+        ctx.lineWidth = 2.5;
+        ctx.setLineDash([5, 4]);
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+        ctx.restore();
+
+        // 下一拍落點小圓點
+        ctx.fillStyle = d.color;
+        ctx.beginPath();
+        ctx.arc(x2, y2, 4, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+
+    // 畫出當前 Cue 的舞者圓圈與名字
+    state.dancers.forEach((d) => {
+      const p = cue.positions[d.id];
+      if (!p) return;
+
+      const px = sx + (p.col + 0.5) * cellW;
+      const py = sy + (p.row + 0.5) * cellH;
+      const radius = Math.min(cellW, cellH) * 0.36;
+
+      ctx.fillStyle = d.color;
+      ctx.beginPath();
+      ctx.arc(px, py, radius, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      ctx.fillStyle = '#0f172a';
+      ctx.font = `bold ${Math.max(11, Math.round(radius * 0.95))}px system-ui, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(d.name.slice(0, 2), px, py + 0.5);
+    });
+
+    // 重置文字對齊，避免影響下一張卡片
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+  });
+
+  // 4. 觸發自動下載 PNG 圖片
+  const link = document.createElement('a');
+  const dateStr = new Date().toISOString().slice(0, 10);
+  link.download = `stagepath-formation-${dateStr}.png`;
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+}
+
+$('#export-image')?.addEventListener('click', exportFormationImage);
+
 // --- Initialization ---
 
 buildStage();
