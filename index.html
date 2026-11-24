@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>StagePath — 舞台走位與燈光模擬</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">STAGEPATH</p>
+        <h1>舞台走位與燈光模擬<span class="beta-badge">BETA</span></h1>
+      </div>
+      <div id="status" class="status" role="status">第 1 個八拍・第 1 拍</div>
+    </header>
+
+    <main class="app-layout">
+      <aside class="panel left-panel">
+        <section>
+          <div class="section-heading"><h2>舞者</h2><span id="dancer-count">0 / 10</span></div>
+          <p class="muted">單擊選取，雙擊可編輯名稱。</p>
+          <div id="dancer-list" class="dancer-list"></div>
+          <form id="add-dancer-form" class="add-form">
+            <input id="dancer-name" maxlength="12" placeholder="舞者名稱，例如 A" required />
+            <button type="submit">新增</button>
+          </form>
+          <button id="set-initial" class="wide-button" type="button">設定初始位置</button>
+        </section>
+
+        <section>
+          <div class="section-heading"><h2>燈光</h2><span id="cue-label">1st 八拍・第 1 拍</span></div>
+          <div class="cue-time">
+            <label>第幾個八拍 <input id="cue-block" type="number" min="1" value="1" /></label>
+            <label>第幾拍 <select id="cue-beat"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option></select></label>
+          </div>
+          <label>燈光顏色 <input id="light-color" type="color" value="#5e8dff" /></label>
+          <label>亮度 <output id="brightness-value">45%</output><input id="light-brightness" type="range" min="0" max="100" value="45" /></label>
+          <label>照射區域
+            <select id="light-zone">
+              <option value="all">全舞台</option>
+              <option value="ul">上左</option>
+              <option value="uc">上中</option>
+              <option value="ur">上右</option>
+              <option value="ml">中左</option>
+              <option value="mc">中央</option>
+              <option value="mr">中右</option>
+              <option value="dl">下左</option>
+              <option value="dc">下中</option>
+              <option value="dr">下右</option>
+            </select>
+          </label>
+          <label>淡入／淡出（拍） <input id="light-fade" type="number" min="0" max="8" value="1" /></label><button id="add-light-cue" class="wide-button" type="button">＋ 新增燈光漸變</button>
+        </section>
+      </aside>
+
+      <section class="workspace">
+        <div class="stage-toolbar">
+          <span class="coordinate">選取格：<b id="selected-cell">—</b></span>
+          <button id="toggle-paths" class="quiet-button" type="button" aria-pressed="true">顯示軌跡</button>
+        </div>
+        <div id="stage-shell" class="stage-shell">
+          <div id="light-overlay" class="light-overlay"></div>
+          <div class="orientation-label orientation-up">UPSTAGE</div>
+          <div class="orientation-label orientation-center">CENTER STAGE</div>
+          <div class="orientation-label orientation-down">DOWNSTAGE</div>
+          <div class="stage-label zone-ul">上右</div>
+          <div class="stage-label zone-uc">上中</div>
+          <div class="stage-label zone-ur">上左</div>
+          <div class="stage-label zone-ml">中右</div>
+          <div class="stage-label zone-mc">中央</div>
+          <div class="stage-label zone-mr">中左</div>
+          <div class="stage-label zone-dl">下右</div>
+          <div class="stage-label zone-dc">下中</div>
+          <div class="stage-label zone-dr">下左</div>
+          <div class="wing-label wing-left">STAGE RIGHT · 舞台右</div><div class="wing-label wing-right">STAGE LEFT · 舞台左</div>
+          <svg id="path-layer" aria-hidden="true"></svg>
+          <div id="stage" class="stage" aria-label="舞台網格"></div>
+          <div id="dancer-layer" class="dancer-layer"></div>
+        </div>
+        <p class="hint">可直接 double-click 選取/切換舞者</p>
+
+        <section class="timeline-section">
+          <div class="section-heading"><h2>時間軸</h2><div class="timeline-actions"><button id="add-block" type="button">＋ 新增 Cue</button><button id="add-eight" type="button">＋ 新增八拍</button></div></div>
+          <div id="timeline" class="timeline" aria-label="八拍時間軸"></div>
+          <div class="transport">
+            <button id="previous-block" type="button" title="上一個 Cue">◀</button>
+            <button id="play" class="play-button" type="button">▶ 播放</button>
+            <button id="next-block" type="button" title="下一個 Cue">▶</button>
+            <label class="tempo-control">BPM <input id="bpm" type="number" min="40" max="240" value="120" /></label>
+            <button id="auto-bpm" type="button" class="quiet-button">自動估算 BPM</button>
+            <button id="half-bpm" type="button" class="quiet-button">½ BPM</button>
+            <button id="double-bpm" type="button" class="quiet-button">×2 BPM</button>
+            <span id="playback-time" class="playback-time">0:00.0</span>
+          </div>
+        </section>
+      </section>
+
+      <aside class="panel right-panel">
+        <section>
+          <div class="section-heading"><h2>音樂</h2></div>
+          <p class="muted">音檔只會在瀏覽器內載入，不會上傳。</p>
+          <label class="file-label">選擇音檔 <input id="audio-file" type="file" accept="audio/*" /></label>
+          <p id="audio-name" class="audio-name">尚未選擇音檔</p>
+          <audio id="audio" preload="metadata"></audio>
+          <button id="play-from-start" class="wide-button" type="button">從頭開始播放</button>
+          <button id="sync-audio" class="wide-button" type="button">從目前選取的拍點開始播放</button>
+        </section>
+        <section>
+          <div class="section-heading"><h2>使用方式</h2></div>
+          <ol class="instructions">
+            <li><strong>時間軸結構：</strong>點擊八拍可再展開下面的小拍。播放可直接播放軌跡，左右鍵可切換前一個或後一個cue點。</li>
+            <li><strong>初始定位：</strong>按「設定初始位置」按鈕並選取舞者、點選舞台格子，全部完成後再按一次結束定位。</li>
+            <li><strong>舞者走位 Cue：</strong>選好舞者與<strong>起始拍點</strong> → 按「＋ 新增 Cue」 → 點舞台<strong>目標位置</strong> → 點時間軸<strong>結束拍</strong>。</li>
+            <li><strong>燈光漸變 Cue：</strong>按「＋ 新增燈光漸變」 → 調整顏色、亮度與區域 → 點時間軸<strong>結束拍</strong>即（應該）可平滑過渡。</li>
+          </ol>
+        </section>
+      </aside>
+    </main>
+    <script src="app.js"></script>
+  </body>
+</html>
