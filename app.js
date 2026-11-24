@@ -384,27 +384,6 @@ function renderCueControls() {
   $('#brightness-value').textContent = `${light.brightness}%`;
   $('#light-zone').value = light.zone;
   /*$('#light-fade').value = light.fade;*/
-  $('#add-light-cue').addEventListener('click', () => {
-    if (state.draft) return alert('請先完成目前的舞者走位 Cue。');
-    if (state.lightDraft) {
-      state.lightDraft = null;
-      $('#add-light-cue').textContent = '＋ 新增燈光漸變';
-      render();
-      return;
-    }
-  
-    const startBeat = state.pendingBeat ?? currentCue().beat;
-    const startLight = structuredClone(lightAt(startBeat));
-  
-    state.lightDraft = {
-      startBeat,
-      startLight,
-      endLight: structuredClone(startLight),
-    };
-    state.pendingBeat = null;
-    $('#add-light-cue').textContent = '設定目標燈光後，點選結束拍';
-    renderTimeline();
-  });
 }
 
 function hexToRgb(hex) {
@@ -845,6 +824,28 @@ $('#set-initial').addEventListener('click', () => {
   renderTimeline();
 }); */
 
+$('#add-light-cue').addEventListener('click', () => {
+  if (state.draft) return alert('請先完成目前的舞者走位 Cue。');
+  if (state.lightDraft) {
+    state.lightDraft = null;
+    $('#add-light-cue').textContent = '＋ 新增燈光漸變';
+    render();
+    return;
+  }
+
+  const startBeat = state.pendingBeat ?? currentCue().beat;
+  const startLight = structuredClone(lightAt(startBeat));
+
+  state.lightDraft = {
+    startBeat,
+    startLight,
+    endLight: structuredClone(startLight),
+  };
+  state.pendingBeat = null;
+  $('#add-light-cue').textContent = '設定目標燈光後，點選結束拍';
+  renderTimeline();
+});
+
 $('#add-eight').addEventListener('click', () => {
   state.groupCount++;
   state.expandedGroup = state.groupCount - 1;
@@ -987,6 +988,46 @@ $('#add-block').addEventListener('click', () => {
   state.pendingBeat = null;
   $('#add-block').textContent = '請設定目標位置';
   renderTimeline();
+});
+
+// 按下 ESC 鍵取消目前正在編輯的走位 Cue、燈光漸變或初始位置設定
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+
+  // 若正在輸入框內（如改舞者名字、輸入 BPM），先退出輸入框焦點，不誤觸取消
+  if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) {
+    document.activeElement.blur();
+    return;
+  }
+
+  let canceled = false;
+
+  // 1. 取消正在新增的舞者走位 Cue（還原按鈕文字與待選拍點）
+  if (state.draft) {
+    state.pendingBeat = state.draft.startBeat;
+    state.draft = null;
+    $('#add-block').textContent = '＋ 新增 Cue';
+    canceled = true;
+  }
+
+  // 2. 取消正在新增的燈光漸變 Cue（還原按鈕文字與燈光預覽）
+  if (state.lightDraft) {
+    state.pendingBeat = state.lightDraft.startBeat;
+    state.lightDraft = null;
+    $('#add-light-cue').textContent = '＋ 新增燈光漸變';
+    canceled = true;
+  }
+
+  // 3. 退出「設定初始位置」模式
+  if (state.initialEditing) {
+    state.initialEditing = false;
+    $('#set-initial').textContent = '設定初始位置';
+    canceled = true;
+  }
+
+  if (canceled) {
+    render();
+  }
 });
 
 // --- Initialization ---
